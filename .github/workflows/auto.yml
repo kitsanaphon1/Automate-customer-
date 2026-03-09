@@ -49,3 +49,6 @@ jobs:
           git add docker-compose.yaml
           git commit -m "chore: update image to v1.${{ github.run_number }} (confirmed build)"
           git push https://${{ secrets.OPS_REPO_TOKEN }}@github.com/kitsanaphon1/deploy-customer-api.git Nonprod
+
+
+        

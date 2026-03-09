@@ -1,14 +1,11 @@
-name: Build and Update Manifest
+name: Build and Push Image
 
 on:
   push:
     branches: [ "Nonprod" ]
 
-permissions:
-  contents: write
-
 jobs:
-  build-and-update:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,24 +17,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 1. CI Phase: Build และ Push Image พร้อม Version ใหม่
+      # 1. CI Phase: Build และ Push Image (ทำสำเร็จแล้วใน v1.4)
       - name: Build and Push
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
+          # Image จะถูกเก็บไว้ที่ Docker Hub พร้อมเลข Run Number เสมอ
           tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
 
-      # 2. Update Manifest: แก้ไข Tag ในไฟล์ docker-compose.yaml ที่อยู่บน GitHub
-      - name: Update Docker Compose Tag
-        run: |
-          sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
-          
-      # 3. GitOps Commit: บันทึกเลขเวอร์ชันล่าสุดกลับเข้า Repository
-      - name: Commit & Push changes
-        run: |
-          git config --global user.name 'github-bot'
-          git config --global user.email 'github-bot@users.noreply.github.com'
-          git add docker-compose.yaml
-          git commit -m "chore: update erpapi-customer image to v1.${{ github.run_number }}"
-          git push
+      # ส่วนที่เหลือ (Update & Commit) ถูกถอดออก 
+      # เพื่อป้องกัน Error: No such file or directory

@@ -28,7 +28,7 @@ models.Base.metadata.create_all(bind=database.engine)
 app = FastAPI(
     title="ERP Customer Service API",
     description="API สำหรับจัดการข้อมูลลูกค้าในระบบ ERP (เชื่อมต่อ Postgres 15)",
-    version="1.0.3",
+    version="1.0.2",
     contact={
         "name": "Chosy",
         "url": "http://192.168.2.180",

@@ -17,28 +17,29 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 1. CI Phase: Build และ Push Image
+      # 1. CI Phase: Build และ Push Image (ใช้เลข Run Number เป็นเวอร์ชัน)
       - name: Build and Push
+        id: docker_build # ตั้ง ID เพื่อไว้อ้างอิงผลลัพธ์
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
           tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
 
-      # 2. CD Phase: ส่งเลข Tag ไปอัปเดตที่ Deploy Repo (GitOps)
+      # 2. CD Phase: จะทำงานได้ก็ต่อเมื่อขั้นตอน Build ด้านบนสำเร็จ 100% เท่านั้น
       - name: Update Deploy Repo Tag
+        if: success() # บังคับให้รันเฉพาะเมื่อ Step ก่อนหน้าสำเร็จ
         run: |
-          # Clone เฉพาะ Repo ปลายทางลงมา
-          git clone https://${{ secrets.OPS_REPO_TOKEN }}@github.com/kitsanaphon1/deploy-customer-api.git Nonprod
+          # Clone เฉพาะ Repo ปลายทาง (Branch Nonprod)
+          git clone -b Nonprod https://${{ secrets.OPS_REPO_TOKEN }}@github.com/kitsanaphon1/deploy-customer-api.git
           cd deploy-customer-api
           
-          # แก้ไขไฟล์ docker-compose.yaml ด้วยเลข Version ล่าสุด (v1.x)
-          # หมายเหตุ: ตรวจสอบว่าชื่อ Image ใน docker-compose.yaml ตรงกับที่ส่งไป (sooyaa1/erpapi-customer)
+          # อัปเดต Tag โดยใช้เลขเดียวกับที่ Build
           sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
           
-          # ตั้งค่า Git และส่งการเปลี่ยนแปลงกลับไปที่ GitHub
           git config --global user.name 'github-bot'
           git config --global user.email 'github-bot@users.noreply.github.com'
+          
           git add docker-compose.yaml
-          git commit -m "chore: update image version to v1.${{ github.run_number }}"
-          git push
+          git commit -m "chore: update image version to v1.${{ github.run_number }} (automated build)"
+          git push https://${{ secrets.OPS_REPO_TOKEN }}@github.com/kitsanaphon1/deploy-customer-api.git Nonprod

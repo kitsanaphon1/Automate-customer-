@@ -1,4 +1,4 @@
-name: Build and Deploy erpapi-customer
+name: Build and Update Manifest
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-push:
+  build-and-update:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,6 +20,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # 1. CI Phase: Build และ Push Image พร้อม Version ใหม่
       - name: Build and Push
         uses: docker/build-push-action@v4
         with:
@@ -27,10 +28,12 @@ jobs:
           push: true
           tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
 
+      # 2. Update Manifest: แก้ไข Tag ในไฟล์ docker-compose.yaml ที่อยู่บน GitHub
       - name: Update Docker Compose Tag
         run: |
           sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
           
+      # 3. GitOps Commit: บันทึกเลขเวอร์ชันล่าสุดกลับเข้า Repository
       - name: Commit & Push changes
         run: |
           git config --global user.name 'github-bot'
@@ -38,28 +41,3 @@ jobs:
           git add docker-compose.yaml
           git commit -m "chore: update erpapi-customer image to v1.${{ github.run_number }}"
           git push
-
-  # --- เพิ่ม Job Deploy เพื่อดึงไฟล์จาก Git ไปใช้บน Server ---
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.REMOTE_HOST }}
-          username: ${{ secrets.REMOTE_USER }} # apiadmin
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # 1. เข้าไปที่โฟลเดอร์โปรเจกต์บน Server
-            cd /home/apiadmin/AUTOMATE-CUSTOMER- 
-            
-            # 2. ดึงไฟล์ docker-compose.yaml ล่าสุดที่บอทเพิ่งแก้บน GitHub ลงมา
-            git pull origin Nonprod
-            
-            # 3. สั่งดึง Image ใหม่ (v1.x) และ Restart Container
-            docker compose pull
-            docker compose up -d
-            
-            # 4. เคลียร์ Image เก่าทิ้ง
-            docker image prune -f

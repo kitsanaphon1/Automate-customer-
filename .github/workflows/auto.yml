@@ -1,10 +1,9 @@
-name: Build and Push Image
+name: Build and Deploy erpapi-customer
 
 on:
   push:
-    branches: [ "Nonprod" ] # รันอัตโนมัติเมื่อมีการ push เข้า branch Nonprod
+    branches: [ "Nonprod" ]
 
-# 1. แก้ไข Error 403: อนุญาตให้ GitHub Actions เขียนไฟล์กลับเข้า Repo ได้
 permissions:
   contents: write
 
@@ -21,22 +20,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 2. CI Phase: Build และ Push Image ไปที่ Docker Hub
       - name: Build and Push
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          # ใช้ v1. ตามด้วยเลข run_number เพื่อให้ได้ Version ใหม่เสมอ
           tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
 
-      # 3. CD Phase (Automation): แก้ไข Tag ในไฟล์ docker-compose.yaml
       - name: Update Docker Compose Tag
         run: |
-          # ค้นหาชื่อ image เดิมและแทนที่ด้วย Tag ใหม่ที่เพิ่ง Build เสร็จ
           sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
           
-      # 4. GitOps: Commit และ Push ไฟล์ที่อัปเดตแล้วกลับเข้า GitHub
       - name: Commit & Push changes
         run: |
           git config --global user.name 'github-bot'
@@ -44,3 +38,28 @@ jobs:
           git add docker-compose.yaml
           git commit -m "chore: update erpapi-customer image to v1.${{ github.run_number }}"
           git push
+
+  # --- เพิ่ม Job Deploy เพื่อดึงไฟล์จาก Git ไปใช้บน Server ---
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }} # apiadmin
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # 1. เข้าไปที่โฟลเดอร์โปรเจกต์บน Server
+            cd /home/apiadmin/AUTOMATE-CUSTOMER- 
+            
+            # 2. ดึงไฟล์ docker-compose.yaml ล่าสุดที่บอทเพิ่งแก้บน GitHub ลงมา
+            git pull origin Nonprod
+            
+            # 3. สั่งดึง Image ใหม่ (v1.x) และ Restart Container
+            docker compose pull
+            docker compose up -d
+            
+            # 4. เคลียร์ Image เก่าทิ้ง
+            docker image prune -f

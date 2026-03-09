@@ -2,7 +2,11 @@ name: Build and Push Image
 
 on:
   push:
-    branches: [ "Nonprod" ] # รันอัตโนมัติเมื่อมีการ push หรือ merge เข้า branch main
+    branches: [ "Nonprod" ] # รันอัตโนมัติเมื่อมีการ push เข้า branch Nonprod
+
+# 1. แก้ไข Error 403: อนุญาตให้ GitHub Actions เขียนไฟล์กลับเข้า Repo ได้
+permissions:
+  contents: write
 
 jobs:
   build-and-push:
@@ -17,22 +21,22 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 1. Build และ Push Image พร้อม Tag ใหม่ (เช่น v1.25)
+      # 2. CI Phase: Build และ Push Image ไปที่ Docker Hub
       - name: Build and Push
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          # ใช้ v1. ตามด้วยเลข run_number เพื่อให้ version ไม่ซ้ำกัน
+          # ใช้ v1. ตามด้วยเลข run_number เพื่อให้ได้ Version ใหม่เสมอ
           tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
 
-      # 2. แก้ไขไฟล์ docker-compose.yaml ให้ใช้ Tag ล่าสุด (Automation)
+      # 3. CD Phase (Automation): แก้ไข Tag ในไฟล์ docker-compose.yaml
       - name: Update Docker Compose Tag
         run: |
-          # ใช้ sed ค้นหาบรรทัดที่มี image ของ erpapi-customer และเปลี่ยน tag เป็น v1.run_number
+          # ค้นหาชื่อ image เดิมและแทนที่ด้วย Tag ใหม่ที่เพิ่ง Build เสร็จ
           sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
           
-      # 3. Commit และ Push ไฟล์ docker-compose.yaml ที่อัปเดตแล้วกลับเข้า Repo
+      # 4. GitOps: Commit และ Push ไฟล์ที่อัปเดตแล้วกลับเข้า GitHub
       - name: Commit & Push changes
         run: |
           git config --global user.name 'github-bot'

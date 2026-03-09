@@ -1,0 +1,39 @@
+services:
+  # ส่วนของฐานข้อมูล PostgreSQL
+  postgres-db: 
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hrdb
+      TZ: Asia/Bangkok
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - erp-network
+    restart: unless-stopped
+
+  # ส่วนของ FastAPI
+  api:
+    image: sooyaa1/erpapi-customer:v1
+    container_name: fastapi-customer-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-db:5432/hrdb
+    depends_on:
+      - postgres-db
+    networks:
+      - erp-network
+    restart: unless-stopped
+
+networks:
+  erp-network:
+    name: erp-network  # <--- เพิ่มบรรทัดนี้เพื่อบังคับชื่อ
+    driver: bridge
+
+volumes:
+  pg_data:

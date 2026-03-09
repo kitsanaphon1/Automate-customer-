@@ -1,0 +1,42 @@
+name: Build and Push Image
+
+on:
+  push:
+    branches: [ "Nonprod" ] # รันอัตโนมัติเมื่อมีการ push หรือ merge เข้า branch main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 1. Build และ Push Image พร้อม Tag ใหม่ (เช่น v1.25)
+      - name: Build and Push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          # ใช้ v1. ตามด้วยเลข run_number เพื่อให้ version ไม่ซ้ำกัน
+          tags: sooyaa1/erpapi-customer:v1.${{ github.run_number }}
+
+      # 2. แก้ไขไฟล์ docker-compose.yaml ให้ใช้ Tag ล่าสุด (Automation)
+      - name: Update Docker Compose Tag
+        run: |
+          # ใช้ sed ค้นหาบรรทัดที่มี image ของ erpapi-customer และเปลี่ยน tag เป็น v1.run_number
+          sed -i "s|image: sooyaa1/erpapi-customer:.*|image: sooyaa1/erpapi-customer:v1.${{ github.run_number }}|g" docker-compose.yaml
+          
+      # 3. Commit และ Push ไฟล์ docker-compose.yaml ที่อัปเดตแล้วกลับเข้า Repo
+      - name: Commit & Push changes
+        run: |
+          git config --global user.name 'github-bot'
+          git config --global user.email 'github-bot@users.noreply.github.com'
+          git add docker-compose.yaml
+          git commit -m "chore: update erpapi-customer image to v1.${{ github.run_number }}"
+          git push
